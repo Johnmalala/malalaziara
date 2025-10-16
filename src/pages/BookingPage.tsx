@@ -10,7 +10,6 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { Button } from '../components/UI/Button';
 import { User, Mail, Phone, MessageSquare, AlertCircle, CheckCircle, ArrowLeft, Calendar, Users as GuestsIcon } from 'lucide-react';
 import { LoadingPage } from '../components/UI/LoadingSpinner';
-import PaymentForms from '../components/shared/PaymentForms';
 
 const bookingSchema = z.object({
   fullName: z.string().min(3, 'Full name is required'),
@@ -21,11 +20,53 @@ const bookingSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
+const PaymentOptions: React.FC<{
+  onPayOnArrival: () => void;
+  onMpesaSubmit: (code: string) => void;
+  loading: boolean;
+}> = ({ onPayOnArrival, onMpesaSubmit, loading }) => {
+  const [mpesaCode, setMpesaCode] = useState('');
+  const [showMpesaForm, setShowMpesaForm] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Choose Your Payment Method</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Button size="lg" variant="outline" onClick={onPayOnArrival} disabled={loading}>
+          Reserve (Pay on Arrival)
+        </Button>
+        <Button size="lg" onClick={() => setShowMpesaForm(true)} disabled={showMpesaForm || loading}>
+          Pay with M-Pesa
+        </Button>
+      </div>
+      {showMpesaForm && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-4 border-t dark:border-gray-700">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+            Please send your payment to Till Number <strong className="text-gray-800 dark:text-white">6262922</strong>, then enter the M-Pesa transaction code below to confirm.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={mpesaCode}
+              onChange={(e) => setMpesaCode(e.target.value.toUpperCase())}
+              placeholder="e.g., SF45G..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <Button onClick={() => onMpesaSubmit(mpesaCode)} loading={loading} disabled={!mpesaCode}>
+              Confirm
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
 const BookingPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { currency, rates } = useCurrency();
+  const { convert } = useCurrency();
   
   const [listing, setListing] = useState<Listing | null>(null);
   const [bookingDetails, setBookingDetails] = useState<any>(null);
@@ -57,37 +98,36 @@ const BookingPage: React.FC = () => {
   const subtotal = bookingDetails?.totalPrice || 0;
   const serviceFee = subtotal * 0.05;
   const totalPriceWithFee = subtotal + serviceFee;
-  const totalPriceInTargetCurrency = totalPriceWithFee * (rates[currency] || 1);
 
-  const handleProceedToPayment = async () => {
+  const handleCreateBooking = async (paymentMethod: 'pay_on_arrival' | 'mpesa', mpesaCode?: string) => {
     const isValid = await trigger();
-    if (!isValid) return;
-
-    if (!user || !listing || !bookingDetails) {
-      setError('Booking details are incomplete.');
+    if (!isValid || !user || !listing || !bookingDetails) {
+      setError('Please fill in all required fields.');
       return;
     }
     
     setLoading(true);
     setError('');
+    setSuccess('');
 
     const formData = getValues();
+    const isConfirmed = paymentMethod !== 'pay_on_arrival';
 
-    const bookingData: Omit<Booking, 'id' | 'created_at' | 'updated_at' | 'total_paid'> = {
+    const bookingData = {
       user_id: user.id,
       listing_id: listing.id,
       check_in_date: new Date(bookingDetails.checkIn).toISOString().split('T')[0],
       check_out_date: bookingDetails.checkOut ? new Date(bookingDetails.checkOut).toISOString().split('T')[0] : null,
       amount: totalPriceWithFee,
-      payment_method: 'daraja',
+      payment_method: paymentMethod,
       traveler_details: {
         full_name: formData.fullName,
         email: formData.email,
         phone: formData.phone,
         special_requests: formData.specialRequests,
       },
-      payment_status: 'pending',
-      status: 'pending_confirmation',
+      status: isConfirmed ? 'confirmed' : 'pending',
+      mpesa_code: mpesaCode || null,
     };
 
     try {
@@ -95,6 +135,8 @@ const BookingPage: React.FC = () => {
       if (insertError) throw insertError;
       
       setCreatedBooking(newBooking as Booking);
+      setSuccess(`Your booking is ${isConfirmed ? 'confirmed' : 'reserved'}! A confirmation email has been sent.`);
+      setTimeout(() => navigate('/dashboard/my-bookings'), 3000);
 
     } catch (err: any) {
       setError(err.message || 'Failed to create booking. Please try again.');
@@ -136,6 +178,12 @@ const BookingPage: React.FC = () => {
                     <span className="text-sm">{error}</span>
                   </div>
                 )}
+                {success && (
+                  <div className="flex items-center p-3 text-green-700 bg-green-50 dark:bg-green-900/50 dark:text-green-300 rounded-lg">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <span className="text-sm">{success}</span>
+                  </div>
+                )}
                 
                 {!createdBooking ? (
                   <>
@@ -146,20 +194,17 @@ const BookingPage: React.FC = () => {
                     <TextareaField id="specialRequests" label="Special Requests (optional)" icon={MessageSquare} register={register} error={errors.specialRequests} />
                     
                     <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                      <Button type="button" size="lg" loading={loading} onClick={handleProceedToPayment} className="w-full">
-                        Proceed to Payment
-                      </Button>
+                      <PaymentOptions 
+                        onPayOnArrival={() => handleCreateBooking('pay_on_arrival')}
+                        onMpesaSubmit={(code) => handleCreateBooking('mpesa', code)}
+                        loading={loading}
+                      />
                     </div>
                   </>
                 ) : (
-                  <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Complete Your Payment</h3>
-                    <PaymentForms 
-                      bookingId={createdBooking.id}
-                      amount={totalPriceInTargetCurrency}
-                      currency={currency}
-                      email={createdBooking.traveler_details.email}
-                    />
+                  <div className="text-center py-8">
+                    <h3 className="text-2xl font-bold text-green-600">Booking Complete!</h3>
+                    <p className="text-gray-600 mt-2">Redirecting you to your dashboard...</p>
                   </div>
                 )}
               </div>
@@ -173,7 +218,7 @@ const BookingPage: React.FC = () => {
               transition={{ delay: 0.2 }}
               className="sticky top-24 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
             >
-              <img src={listing.images[0] || `https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://placehold.co/400x300/dc2626/white?text=Ziarazetu`} alt={listing.title} className="w-full h-40 object-cover rounded-lg mb-4" />
+              <img src={listing.images[0] || `https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://img-wrapper.vercel.app/image?url=https://placehold.co/400x300/dc2626/white?text=Ziarazetu`} alt={listing.title} className="w-full h-40 object-cover rounded-lg mb-4" />
               <h3 className="font-bold text-xl text-gray-900 dark:text-white">{listing.title}</h3>
               <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{listing.location}</p>
               <div className="border-t border-gray-200 dark:border-gray-700 py-4 space-y-2 text-sm">
@@ -196,19 +241,19 @@ const BookingPage: React.FC = () => {
               <div className="border-t border-gray-200 dark:border-gray-700 py-4 space-y-2 text-sm">
                 {isStay && bookingDetails.nights > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">{new Intl.NumberFormat().format(listing.price)} x {bookingDetails.nights} nights</span>
-                    <span className="text-gray-800 dark:text-gray-200">{new Intl.NumberFormat().format(subtotal)}</span>
+                    <span className="text-gray-600 dark:text-gray-400">{convert(listing.price)} x {bookingDetails.nights} nights</span>
+                    <span className="text-gray-800 dark:text-gray-200">{convert(subtotal)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Service fee</span>
-                  <span className="text-gray-800 dark:text-gray-200">{new Intl.NumberFormat().format(serviceFee)}</span>
+                  <span className="text-gray-800 dark:text-gray-200">{convert(serviceFee)}</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-center font-bold text-lg pt-4 text-gray-900 dark:text-white">
                 <span>Total</span>
-                <span className="flex items-center">{new Intl.NumberFormat().format(totalPriceWithFee)} {currency}</span>
+                <span>{convert(totalPriceWithFee)}</span>
               </div>
             </motion.div>
           </div>

@@ -24,7 +24,7 @@ import CheckEmail from './pages/auth/CheckEmail';
 
 // Dashboard Pages
 import DashboardIndex from './pages/dashboard/DashboardIndex';
-import MyBookings from './pages/dashboard/MyBookings';
+import { MyBookings } from './pages/dashboard/MyBookings';
 import MyWishlist from './pages/dashboard/MyWishlist';
 import ProfileSettings from './pages/dashboard/ProfileSettings';
 import SecuritySettings from './pages/dashboard/SecuritySettings';

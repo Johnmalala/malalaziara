@@ -66,18 +66,15 @@ export interface Booking {
   check_in_date: string;
   check_out_date?: string | null;
   amount: number;
-  payment_status: 'pending' | 'confirmed' | 'failed' | 'pending_confirmation' | 'partially_paid';
-  payment_method: 'pay_on_arrival' | 'lipa_mdogo_mdogo' | 'mpesa' | 'paystack' | 'intasend' | 'daraja';
-  status: 'active' | 'cancelled' | 'completed' | 'pending_confirmation';
+  payment_method: 'pay_on_arrival' | 'mpesa';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   traveler_details: {
     full_name: string;
     email: string;
     phone: string;
     special_requests?: string;
   };
-  payment_reference?: string | null;
-  daraja_checkout_request_id?: string | null;
-  total_paid: number;
+  mpesa_code?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,8 +84,7 @@ export interface BookingPayment {
   booking_id: string;
   amount: number;
   payment_date: string;
-  daraja_mpesa_receipt?: string | null;
-  payment_reference?: string | null;
+  transaction_code?: string | null;
   created_at: string;
 }
 
