@@ -7,8 +7,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file.');
 }
 
-// Always use the real Supabase URL. 
-// The Vite proxy will intercept the requests in development.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Database Types
@@ -69,7 +67,7 @@ export interface Booking {
   check_out_date?: string | null;
   amount: number;
   payment_status: 'pending' | 'confirmed' | 'failed' | 'pending_confirmation' | 'partially_paid';
-  payment_method: 'pay_on_arrival' | 'lipa_mdogo_mdogo' | 'mpesa';
+  payment_method: 'pay_on_arrival' | 'lipa_mdogo_mdogo' | 'mpesa' | 'paystack' | 'intasend' | 'daraja';
   status: 'active' | 'cancelled' | 'completed' | 'pending_confirmation';
   traveler_details: {
     full_name: string;
@@ -77,7 +75,8 @@ export interface Booking {
     phone: string;
     special_requests?: string;
   };
-  mpesa_code?: string | null;
+  payment_reference?: string | null;
+  daraja_checkout_request_id?: string | null;
   total_paid: number;
   created_at: string;
   updated_at: string;
@@ -88,7 +87,8 @@ export interface BookingPayment {
   booking_id: string;
   amount: number;
   payment_date: string;
-  mpesa_code: string;
+  daraja_mpesa_receipt?: string | null;
+  payment_reference?: string | null;
   created_at: string;
 }
 

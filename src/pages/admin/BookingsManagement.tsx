@@ -60,7 +60,7 @@ const BookingsManagement: React.FC = () => {
   };
 
   const handleApprove = async (booking: BookingWithListing) => {
-    if (window.confirm(`Are you sure you want to approve this M-Pesa payment?`)) {
+    if (window.confirm(`Are you sure you want to approve this payment? This will mark the booking as active.`)) {
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ status: 'active', payment_status: 'confirmed' })
@@ -71,7 +71,7 @@ const BookingsManagement: React.FC = () => {
   };
 
   const handleDelete = async (booking: BookingWithListing) => {
-    if (window.confirm(`Are you sure you want to delete this booking?`)) {
+    if (window.confirm(`Are you sure you want to delete this booking? This will also delete all associated payments.`)) {
       await supabase.from('booking_payments').delete().eq('booking_id', booking.id);
       const { error } = await supabase.from('bookings').delete().eq('id', booking.id);
       if (error) alert('Failed to delete booking.');
@@ -95,9 +95,9 @@ const BookingsManagement: React.FC = () => {
       render: (row) => `${convert(row.total_paid || 0)} / ${convert(row.amount)}`
     },
     {
-      header: 'M-Pesa Code',
-      accessor: 'mpesa_code',
-      render: (row) => row.mpesa_code || 'N/A'
+      header: 'Payment Ref',
+      accessor: 'payment_reference',
+      render: (row) => row.payment_reference ? row.payment_reference.substring(0, 15) + '...' : 'N/A'
     },
     { 
       header: 'Status', 
@@ -120,7 +120,7 @@ const BookingsManagement: React.FC = () => {
       accessor: 'id',
       render: (row) => (
         <div className="flex items-center space-x-2">
-          {row.payment_method === 'lipa_mdogo_mdogo' && (
+          {(row.payment_method === 'lipa_mdogo_mdogo' || row.payment_method === 'intasend') && (
             <Button size="sm" variant="ghost" onClick={() => handleOpenHistoryModal(row.id)} icon={Eye}>
               Payments
             </Button>
